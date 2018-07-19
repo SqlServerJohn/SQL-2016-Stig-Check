@@ -1,3 +1,19 @@
+/*
+STIG Check Script
+
+This script is being written to automate the STIG checks for the DISA SQL 2016 Database STIG
+The SQL script checks are directly from the STIG text.  
+All rows returned are one of 3 categories:
+	Not a finding
+		Verify that the database was checked, and nothing was found
+	Check Documentation
+		returned rows must be documented, or else it is a finding
+	FINDING
+		row is a finding
+The rows are writen to a temporary table (#STIGResults) that can be easily inserted into a tracking table for tracking over time.
+The script is designed to be run against an instance, and database checks will run against every database in that instance.
+	System databases will be checked, unless the STIG specifically excludes them.
+*/
 USE MASTER
 
 BEGIN --Getting Ready
