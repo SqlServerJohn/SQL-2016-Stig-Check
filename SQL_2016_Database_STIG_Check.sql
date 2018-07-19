@@ -100,4 +100,68 @@ IF (SERVERPROPERTY('IsIntegratedSecurityOnly') = 0)
 				SYSDATETIME() as RunTimeStamp
 END  --V-79061
 
+BEGIN --V-79063- SQL Server 2016 Database-Mixed Mode Authentication and Database Users	
+ raiserror ('Starting V-79063-1', 10,1) with nowait
+--V-79063 Check 1: Determine whether SQL Server is configured to use only Windows authentication. 
+Insert into #STIGResults
+	Select 'V-79063-1-Windows or Mixed Authentication' as STIG,
+		@@SERVERNAME AS ServerName,
+		'NA' AS DatabaseName,
+		CASE SERVERPROPERTY('IsIntegratedSecurityOnly') 
+			WHEN 1 THEN 'Not A Finding' 
+			WHEN 0 THEN 'CHECK DOCUMENTATION' 
+		END as Result,
+		CASE SERVERPROPERTY('IsIntegratedSecurityOnly') 
+			WHEN 1 THEN 'Windows Authentication Only' 
+			WHEN 0 THEN 'Windows and SQL Server Authentication. Documentation is required for Mixed Mode authentication, or it must be disabled.' 
+		END as Notes, 
+		SYSDATETIME() as RunTimeStamp; 
+--V-79063 Check 2: Determine the accounts (Database Users) actually managed by SQL Server, if server is running Mixed Mode.
+ raiserror ('Starting V-79063-2', 10,1) with nowait
+IF (SERVERPROPERTY('IsIntegratedSecurityOnly') = 0)
+	BEGIN
+		SELECT @HitCount=0, @Database='', @Command=''
+		Declare DB_Users_Cursor CURSOR FOR
+			SELECT name from Sys.databases 
+		OPEN DB_Users_Cursor
+		FETCH NEXT FROM DB_Users_Cursor INTO @Database
+		WHILE @@FETCH_STATUS = 0
+		BEGIN 
+				SELECT @Command = 'Insert into #STIGResults 
+									SELECT ''V-79063-2-Database User Accounts'' as STIG, 
+										@@SERVERNAME AS ServerName, 
+										'''+@Database+''' AS DatabaseName, 
+										''CHECK DOCUMENTATION'' as Result,  
+										'''+@Database+''' +''_''+Name+ ''  Database User Account must be documented as authorized.'' as Notes, 
+										SYSDATETIME() as RunTimeStamp 
+										FROM '+@Database+'.sys.database_principals 
+										WHERE type = ''S'''
+				EXEC sp_executesql @Command 
+				SELECT @HitCount = @HitCount+@@ROWCOUNT
+			FETCH NEXT FROM DB_Users_Cursor INTO @Database
+		END
+		CLOSE DB_Users_Cursor
+		DEALLOCATE DB_Users_Cursor
+		IF (@HitCount = 0)
+			BEGIN
+				Insert into #STIGResults
+					Select 'V-79063-2-Database User Accounts' as STIG,
+					@@SERVERNAME AS ServerName,
+					'NA' AS DatabaseName,
+					'Not A Finding' as Result, 
+					'No Database User Accounts found' as Notes, 
+					SYSDATETIME() as RunTimeStamp
+			END
+	END	
+	ELSE
+		Insert into #STIGResults
+			Select 'V-79063-2-Database User Accounts' as STIG,
+				@@SERVERNAME AS ServerName,
+				'NA' AS DatabaseName,
+				'Not A Finding' as Result, 
+				'Windows Authentication Only' as Notes, 
+				SYSDATETIME() as RunTimeStamp
+END  --V-79063
+
+
 Select * from #STIGResults
